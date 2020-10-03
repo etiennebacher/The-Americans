@@ -2,6 +2,7 @@ library(here)
 library(renv)
 library(rvest)
 library(tidyverse)
+library(tidytext)
 
 
 ### Dont forget to do renv::restore()
@@ -32,7 +33,13 @@ page_text_cleaned <- page_text %>%
   gsub("\\n", " ", .) %>%
   gsub("\\t", " ", .) %>%
   gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>%
-  gsub("\\\\", "", .)
+  gsub("\\\\", "", .) %>%
+  gsub("\\(adsbygoogle = window.adsbygoogle \\|\\| \\).push\\(\\{\\}\\);", "", .) %>%
+  gsub("Philip:", "", .) %>%
+  gsub("Elizabeth:", "", .) %>%
+  gsub("Paige:", "", .) %>%
+  gsub("Henry:", "", .) %>%
+  gsub("Stan:", "", .) 
  
  
 # How to generalize to all episodes?
@@ -103,4 +110,98 @@ episode_ids_3 <- episode_ids_3[-c(1, 2)]
 
 episode_ids_total <- c(episode_ids_1, episode_ids_2, episode_ids_3)
 
+
+
+###########################
+## Extract dialogues of all episodes available ##
+###########################
+
+
+list_dialogues <- purrr::map(episode_ids_total, .f = function(x) {
+  
+  page <- read_html(paste0("http://transcripts.foreverdreaming.org/viewtopic.php?f=116&t=", x))
+  
+  page_text <- html_node(page, "div.postbody") %>%
+    html_children() %>%
+    xml2::xml_find_all("//div[contains(@class, 'postbody')]") %>%
+    html_text(trim = TRUE)
+ 
+  page_text_cleaned <- page_text %>%
+    gsub("♪[^♪]+♪", "", .) %>%
+    gsub("\\n", " ", .) %>%
+    gsub("\\t", " ", .) %>%
+    gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>%
+    gsub("\\\\", "", .) %>%
+    gsub("\\(adsbygoogle = window.adsbygoogle \\|\\| \\).push\\(\\{\\}\\);", "", .) %>%
+    gsub("Philip:", "", .) %>%
+    gsub("Elizabeth:", "", .) %>%
+    gsub("Paige:", "", .) %>%
+    gsub("Henry:", "", .) %>%
+    gsub("Stan:", "", .) 
+  
+  return(page_text_cleaned)
+  
+})
+
+
+
+
+#####################################################################
+## Analyzing the dialogues ##
+#####################################################################
+
+list_dialogues_words <- map(list_dialogues, .f = function(x) {
+  as_tibble(x) %>%
+    unnest_tokens(word, value)
+})   
+
+
+###########################
+## Number of words per episode in Season 1 ##
+###########################
+
+map(list_dialogues_words[1:13], nrow) %>%
+  unlist() %>%
+  as_tibble() %>%
+  tibble::rowid_to_column() %>%
+  ggplot(aes(x = rowid, y = value)) + 
+  geom_line() +
+  scale_x_discrete(name = "Episode number", limits = factor(c(1:13))) +
+  scale_y_continuous(name = "Number of words") +
+  ggtitle("Number of words per episode in Season 1")
+
+
+###########################
+## Words most said ##
+###########################
+
+
+### In episode 1 
+
+list_dialogues_words[[1]] %>%
+  filter(!(word %in% c("hey", "uh", "um", "yeah"))) %>%
+  anti_join(stop_words, by = c("word" = "word")) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 5) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
+
+### In season 1
+
+list_dialogues_words[1:13] %>%
+  unlist() %>%
+  as_tibble() %>%
+  rename("word" = "value") %>%
+  filter(!(word %in% c("hey", "uh", "um", "yeah"))) %>%
+  anti_join(stop_words, by = c("word" = "word")) %>%
+  count(word, sort = TRUE) %>%
+  filter(n > 50) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip()
 
