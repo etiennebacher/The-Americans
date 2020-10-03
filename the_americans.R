@@ -27,5 +27,5 @@ page_text_cleaned <- page_text %>%
   gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>%
   gsub("\\\\", "", .)
  
-
+ 
 
