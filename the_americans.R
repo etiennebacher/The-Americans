@@ -18,7 +18,7 @@ library(tidytext)
 ###########################
 
 
-page <- read_html("http://transcripts.foreverdreaming.org/viewtopic.php?f=116&t=15871&sid=4659be7fe06af87129c0d7d648b7d470")
+page <- read_html("http://transcripts.foreverdreaming.org/viewtopic.php?f=116&t=15871")
 
 page_text <- html_node(page, "div.postbody") %>%
   html_children() %>%
@@ -29,13 +29,15 @@ page_text <- html_node(page, "div.postbody") %>%
 # https://stackoverflow.com/questions/45414913/gsub-and-remove-all-characters-between-and-in-r
 # https://stackoverflow.com/questions/23966678/remove-all-text-between-two-brackets
 page_text_cleaned <- page_text %>%
-  gsub("♪[^♪]+♪", "", .) %>%
-  gsub("\\n", " ", .) %>%
-  gsub("\\t", " ", .) %>%
-  gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>%
-  gsub("\\\\", "", .) %>%
-  gsub("\\(adsbygoogle = window.adsbygoogle \\|\\| \\).push\\(\\{\\}\\);", "", .) %>%
-  gsub("Philip:", "", .) %>%
+  gsub("♪♪", "", .) %>% # double music symbol
+  gsub("♪ [^♪]+♪", "", .) %>% # text between music symbol (= lyrics)
+  gsub("\\n", " ", .) %>% # new line symbol
+  gsub("\\t", " ", .) %>% 
+  gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>% # text between brackets
+  gsub("\\([^\\)]*\\)", "", ., perl = TRUE) %>% # text between parenthesis
+  gsub("\\\\", "", .) %>% # backslash
+  gsub("\\(adsbygoogle = window.adsbygoogle \\|\\| \\).push\\(\\{\\}\\);", "", .) %>% # ads
+  gsub("Philip:", "", .) %>% 
   gsub("Elizabeth:", "", .) %>%
   gsub("Paige:", "", .) %>%
   gsub("Henry:", "", .) %>%
@@ -127,10 +129,12 @@ list_dialogues <- purrr::map(episode_ids_total, .f = function(x) {
     html_text(trim = TRUE)
  
   page_text_cleaned <- page_text %>%
-    gsub("♪[^♪]+♪", "", .) %>%
+    gsub("♪♪", "", .) %>%
+    gsub("♪ [^♪]+♪", "", .) %>%
     gsub("\\n", " ", .) %>%
     gsub("\\t", " ", .) %>%
     gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>%
+    gsub("\\([^\\)]*\\)", "", ., perl = TRUE) %>%
     gsub("\\\\", "", .) %>%
     gsub("\\(adsbygoogle = window.adsbygoogle \\|\\| \\).push\\(\\{\\}\\);", "", .) %>%
     gsub("Philip:", "", .) %>%
@@ -157,29 +161,41 @@ list_dialogues_words <- map(list_dialogues, .f = function(x) {
 
 
 ###########################
-## Number of words per episode in Season 1 ##
+## Number of words per episode per season ##
 ###########################
 
-map(list_dialogues_words[1:13], nrow) %>%
+map(list_dialogues_words, nrow) %>%
   unlist() %>%
   as_tibble() %>%
   tibble::rowid_to_column() %>%
-  ggplot(aes(x = rowid, y = value)) + 
+  mutate(
+    season = case_when(
+      rowid %in% c(1:13) ~ 1,
+      rowid %in% c(14:26) ~ 2,
+      rowid %in% c(27:39) ~ 3,
+      rowid %in% c(40:52) ~ 4
+    )
+  ) %>%
+  group_by(season) %>%
+  mutate(rowid = c(1:13)) %>%
+  ungroup() %>%
+  ggplot(aes(x = rowid, y = value, color = factor(season))) + 
   geom_line() +
   scale_x_discrete(name = "Episode number", limits = factor(c(1:13))) +
   scale_y_continuous(name = "Number of words") +
-  ggtitle("Number of words per episode in Season 1")
+  ggtitle("Number of words per episode per season")
 
 
 ###########################
 ## Words most said ##
 ###########################
 
+onomatopoeia <- c("hey", "uh", "um", "yeah")
 
 ### In episode 1 
 
 list_dialogues_words[[1]] %>%
-  filter(!(word %in% c("hey", "uh", "um", "yeah"))) %>%
+  filter(!(word %in% onomatopoeia)) %>%
   anti_join(stop_words, by = c("word" = "word")) %>%
   count(word, sort = TRUE) %>%
   filter(n > 5) %>%
@@ -195,7 +211,7 @@ list_dialogues_words[1:13] %>%
   unlist() %>%
   as_tibble() %>%
   rename("word" = "value") %>%
-  filter(!(word %in% c("hey", "uh", "um", "yeah"))) %>%
+  filter(!(word %in% onomatopoeia)) %>%
   anti_join(stop_words, by = c("word" = "word")) %>%
   count(word, sort = TRUE) %>%
   filter(n > 50) %>%
@@ -204,4 +220,45 @@ list_dialogues_words[1:13] %>%
   geom_col() +
   xlab(NULL) +
   coord_flip()
+
+
+###########################
+## Sentiment analysis ##
+###########################
+
+pos_sentiment <- tidytext::sentiments %>% 
+  filter(sentiment == "positive")
+
+neg_sentiment <- tidytext::sentiments %>% 
+  filter(sentiment == "negative")
+
+
+dialogues_sentiment <- map_dfr(list_dialogues_words, function(x) {
+  x %>%
+    inner_join(tidytext::sentiments) %>%
+    count(sentiment)
+}) %>%
+  mutate(
+    season = rep(c(1:4), each = 26),
+    episode = rep(rep(1:13, each = 2), times = 4)
+  )
+
+
+dialogues_sentiment %>%
+  ggplot(aes(x = episode, y = n, color = factor(sentiment))) + 
+  geom_line() +
+  scale_x_discrete(name = "Episode number", limits = factor(c(1:13))) +
+  scale_y_continuous(name = "Number of words") +
+  ggtitle(paste0("Number of positive and negative words per episode and per season")) +
+  facet_wrap(~ season)
+
+
+
+
+
+
+
+
+
+
 
