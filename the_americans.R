@@ -1,4 +1,3 @@
-library(here)
 library(renv)
 library(rvest)
 library(tidyverse)
@@ -32,7 +31,7 @@ page_text_cleaned <- page_text %>%
   gsub("♪♪", "", .) %>% # double music symbol
   gsub("♪ [^♪]+♪", "", .) %>% # text between music symbol (= lyrics)
   gsub("\\n", " ", .) %>% # new line symbol
-  gsub("\\t", " ", .) %>% 
+  gsub("\\t", " ", .) %>% # \t
   gsub("\\[[^\\]]*\\]", "", ., perl = TRUE) %>% # text between brackets
   gsub("\\([^\\)]*\\)", "", ., perl = TRUE) %>% # text between parenthesis
   gsub("\\\\", "", .) %>% # backslash
@@ -183,14 +182,15 @@ map(list_dialogues_words, nrow) %>%
   geom_line() +
   scale_x_discrete(name = "Episode number", limits = factor(c(1:13))) +
   scale_y_continuous(name = "Number of words") +
-  ggtitle("Number of words per episode per season")
+  ggtitle("Number of words per episode per season") +
+  scale_color_discrete(name = "Season")
 
 
 ###########################
 ## Words most said ##
 ###########################
 
-onomatopoeia <- c("hey", "uh", "um", "yeah")
+onomatopoeia <- c("hey", "uh", "um", "yeah", "uhh")
 
 ### In episode 1 
 
@@ -226,13 +226,6 @@ list_dialogues_words[1:13] %>%
 ## Sentiment analysis ##
 ###########################
 
-pos_sentiment <- tidytext::sentiments %>% 
-  filter(sentiment == "positive")
-
-neg_sentiment <- tidytext::sentiments %>% 
-  filter(sentiment == "negative")
-
-
 dialogues_sentiment <- map_dfr(list_dialogues_words, function(x) {
   x %>%
     inner_join(tidytext::sentiments) %>%
@@ -244,6 +237,8 @@ dialogues_sentiment <- map_dfr(list_dialogues_words, function(x) {
   )
 
 
+### Number of positive and negative words per episode and per season
+
 dialogues_sentiment %>%
   ggplot(aes(x = episode, y = n, color = factor(sentiment))) + 
   geom_line() +
@@ -251,6 +246,30 @@ dialogues_sentiment %>%
   scale_y_continuous(name = "Number of words") +
   ggtitle(paste0("Number of positive and negative words per episode and per season")) +
   facet_wrap(~ season)
+
+
+### Details on positive and negative words in season 1
+
+list_dialogues_words[1:13] %>%
+  unlist() %>%
+  as_tibble() %>%
+  rename("word" = "value") %>%
+  inner_join(tidytext::sentiments) %>%
+  group_by(word) %>%
+  mutate(n = n()) %>%
+  ungroup() %>%
+  distinct() %>%
+  top_n(30) %>%
+  mutate(word = reorder(word, n)) %>%
+  ggplot(aes(word, n, fill = sentiment)) +
+  geom_col() +
+  xlab(NULL) +
+  coord_flip() +
+  facet_wrap(~ sentiment, scales = "free_y") +
+  geom_text(aes(label = n), nudge_y = 10) + 
+  ggtitle("Positive and negative words most used in season 1")
+
+
 
 
 
