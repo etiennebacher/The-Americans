@@ -203,7 +203,10 @@ list_dialogues_words[[1]] %>%
   ggplot(aes(word, n)) +
   geom_col() +
   xlab(NULL) +
-  coord_flip()
+  geom_text(aes(label = n), nudge_y = 1) +
+  coord_flip() +
+  ggtitle("Most said words in episode 1 of season 1")
+
 
 ### In season 1
 
@@ -219,7 +222,9 @@ list_dialogues_words[1:13] %>%
   ggplot(aes(word, n)) +
   geom_col() +
   xlab(NULL) +
-  coord_flip()
+  geom_text(aes(label = n), nudge_y = 10) +
+  coord_flip() +
+  ggtitle("Most said words in season 1")
 
 
 ###########################
@@ -245,7 +250,8 @@ dialogues_sentiment %>%
   scale_x_discrete(name = "Episode number", limits = factor(c(1:13))) +
   scale_y_continuous(name = "Number of words") +
   ggtitle(paste0("Number of positive and negative words per episode and per season")) +
-  facet_wrap(~ season)
+  facet_wrap(~ season) +
+  scale_color_discrete("Sentiment")
 
 
 ### Details on positive and negative words in season 1
